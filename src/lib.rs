@@ -10,11 +10,18 @@ mod gui;
 mod midi;
 
 mod params;
+pub mod packgen;
 mod presets;
 
 mod resonator;
+mod strings;
+mod strings_bank;
+mod strings_gui;
+mod strings_presets;
+mod sympathetic;
 mod voice;
 mod wavetable;
+mod widgets;
 
 use body::{Body, BodyFrame};
 use bridge::{Bridge, MidiShared};
@@ -27,6 +34,7 @@ use granular::{GrainFrame, Granular, Interval};
 use nih_plug::prelude::*;
 use params::{GrainInterval, LumenParams, ResModel, VoiceMode};
 use resonator::{Kind, ResFrame};
+pub use strings::LumenStrings;
 use std::f32::consts::{FRAC_PI_2, TAU};
 use std::num::NonZeroU32;
 use std::sync::atomic::Ordering;
@@ -110,7 +118,7 @@ impl Default for Lumen {
     }
 }
 
-fn lfo_value(shape: f32, ph: f32) -> f32 {
+pub(crate) fn lfo_value(shape: f32, ph: f32) -> f32 {
     let sine = (ph * TAU).sin();
     let tri = 1.0 - 4.0 * (ph - 0.5).abs();
     let saw = 1.0 - 2.0 * ph;
@@ -272,7 +280,10 @@ impl Lumen {
         let osc_frame = |o: &params::OscParams| {
             let semis = self.bridge.eff(&o.tune, n) + self.bridge.val(&o.fine) / 100.0;
             OscFrame {
-                position: (self.bridge.eff(&o.position, n) + lfo * to_pos + evo_a * evo_table * 0.5 + chaos[0] * chaos_amt * 0.25)
+                position: (self.bridge.eff(&o.position, n)
+                    + lfo * to_pos
+                    + evo_a * evo_table * 0.5
+                    + chaos[0] * chaos_amt * 0.25)
                     .clamp(0.0, 1.0),
                 level: self.bridge.eff(&o.level, n),
                 ratio: 2f32.powf(semis / 12.0),
@@ -328,7 +339,9 @@ impl Lumen {
             drive: self.bridge.eff(&p.filter.drive, n),
             env_amount: self.bridge.eff(&p.filter.env_amount, n),
             lfo_cutoff: lfo * to_cut * 3.0 + evo_b * evo_cut * 2.0 + chaos[2] * chaos_amt * 1.5,
-            pitch_mul: 2f32.powf((self.bend * 2.0 + lfo * to_pitch * 12.0 + chaos[3] * chaos_amt * 0.06) / 12.0),
+            pitch_mul: 2f32.powf(
+                (self.bend * 2.0 + lfo * to_pitch * 12.0 + chaos[3] * chaos_amt * 0.06) / 12.0,
+            ),
             drift_cents: self.bridge.eff(&p.drift, n) * 12.0 * (0.5 + 1.5 * organic),
             pos_spread: evo_vox * 0.2,
             glide_coef,
@@ -412,9 +425,10 @@ impl Lumen {
             peak = peak.max(l[i].abs()).max(r[i].abs());
         }
         let prev = self.shared.peak.load(Ordering::Relaxed);
-        self.shared
-            .peak
-            .store(if peak > prev { peak } else { prev * 0.98 }, Ordering::Relaxed);
+        self.shared.peak.store(
+            if peak > prev { peak } else { prev * 0.98 },
+            Ordering::Relaxed,
+        );
     }
 }
 
@@ -490,12 +504,18 @@ impl Plugin for Lumen {
                 match next_event {
                     Some(event) if (event.timing() as usize) <= start => {
                         match event {
-                            NoteEvent::NoteOn { note, velocity, .. } => self.note_on(note, velocity),
+                            NoteEvent::NoteOn { note, velocity, .. } => {
+                                self.note_on(note, velocity)
+                            }
                             NoteEvent::NoteOff { note, .. } => self.note_off(note),
                             NoteEvent::MidiPitchBend { value, .. } => self.bend = value * 2.0 - 1.0,
-                            NoteEvent::MidiCC { timing, channel, cc, value, .. } => {
-                                self.bridge.on_cc(timing as usize, channel, cc, value)
-                            }
+                            NoteEvent::MidiCC {
+                                timing,
+                                channel,
+                                cc,
+                                value,
+                                ..
+                            } => self.bridge.on_cc(timing as usize, channel, cc, value),
                             _ => {}
                         }
                         next_event = context.next_event();
@@ -539,8 +559,8 @@ impl Vst3Plugin for Lumen {
         &[Vst3SubCategory::Instrument, Vst3SubCategory::Synth];
 }
 
-nih_export_clap!(Lumen);
-nih_export_vst3!(Lumen);
+nih_export_clap!(Lumen, LumenStrings);
+nih_export_vst3!(Lumen, LumenStrings);
 
 #[cfg(test)]
 mod tests {
@@ -583,7 +603,12 @@ mod tests {
                 unsafe { (*p).smoothed.reset((*p).value()) };
             }
         }
-        let slot = s.shared.midi.slots.slot_of(&s.params.filter.cutoff).unwrap();
+        let slot = s
+            .shared
+            .midi
+            .slots
+            .slot_of(&s.params.filter.cutoff)
+            .unwrap();
         let start = s.shared.midi.slots.host_norm(slot);
         {
             let mut l = [0.0f32; BLOCK];
@@ -717,8 +742,22 @@ mod stuck {
             &[(true, 60), (false, 60)],
             &[(true, 60), (true, 67), (false, 60), (false, 67)],
             &[(true, 60), (true, 67), (false, 67), (false, 60)],
-            &[(true, 60), (true, 64), (true, 67), (false, 64), (false, 60), (false, 67)],
-            &[(true, 60), (false, 60), (true, 67), (false, 67), (true, 72), (false, 72)],
+            &[
+                (true, 60),
+                (true, 64),
+                (true, 67),
+                (false, 64),
+                (false, 60),
+                (false, 67),
+            ],
+            &[
+                (true, 60),
+                (false, 60),
+                (true, 67),
+                (false, 67),
+                (true, 72),
+                (false, 72),
+            ],
             &[(true, 60), (true, 60), (false, 60), (false, 60)],
         ];
         for mode in MODES {
@@ -762,7 +801,24 @@ mod stuck {
             run(&mut s, 3.0);
             let v = &s.voices[0];
             assert_eq!(v.note, expected);
-            assert!((v.pitch() - expected as f32).abs() < 0.3, "pitch {} vs {expected}", v.pitch());
+            assert!(
+                (v.pitch() - expected as f32).abs() < 0.3,
+                "pitch {} vs {expected}",
+                v.pitch()
+            );
         }
+    }
+}
+
+#[cfg(test)]
+impl Lumen {
+    pub fn table_for_test(&self) -> Arc<WaveTable> {
+        self.table.clone()
+    }
+    pub fn shared_for_test(&self) -> Arc<Shared> {
+        self.shared.clone()
+    }
+    pub fn params_for_test(&self) -> Arc<LumenParams> {
+        self.params.clone()
     }
 }

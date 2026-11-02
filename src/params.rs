@@ -1,6 +1,6 @@
+use crate::midi::SavedMap;
 use nih_plug::prelude::*;
 use nih_plug_egui::EguiState;
-use crate::midi::SavedMap;
 use std::sync::{Arc, Mutex};
 
 fn seconds(name: &str, default: f32) -> FloatParam {
@@ -16,7 +16,7 @@ fn seconds(name: &str, default: f32) -> FloatParam {
     .with_unit(" s")
 }
 
-fn percent(name: &str, default: f32) -> FloatParam {
+pub(crate) fn percent(name: &str, default: f32) -> FloatParam {
     FloatParam::new(name, default, FloatRange::Linear { min: 0.0, max: 1.0 })
         .with_smoother(SmoothingStyle::Linear(10.0))
         .with_unit(" %")
@@ -47,9 +47,16 @@ impl OscParams {
         Self {
             position: percent("Table Position", position),
             level: percent("Level", level),
-            tune: FloatParam::new("Tune", 0.0, FloatRange::Linear { min: -36.0, max: 36.0 })
-                .with_smoother(SmoothingStyle::Linear(20.0))
-                .with_unit(" st"),
+            tune: FloatParam::new(
+                "Tune",
+                0.0,
+                FloatRange::Linear {
+                    min: -36.0,
+                    max: 36.0,
+                },
+            )
+            .with_smoother(SmoothingStyle::Linear(20.0))
+            .with_unit(" st"),
             fine: FloatParam::new(
                 "Fine",
                 0.0,
@@ -239,7 +246,7 @@ impl Default for LumenParams {
             macros: MacroParams::new(),
             midi: MidiParams::new(),
             midi_maps: Mutex::new(Vec::new()),
-            editor_state: EguiState::from_size(1160, 930),
+            editor_state: EguiState::from_size(1260, 900),
             gain: FloatParam::new(
                 "Gain",
                 util::db_to_gain(-14.0),
@@ -359,7 +366,10 @@ impl FxParams {
             delay_feedback: FloatParam::new(
                 "Delay Feedback",
                 0.4,
-                FloatRange::Linear { min: 0.0, max: 0.95 },
+                FloatRange::Linear {
+                    min: 0.0,
+                    max: 0.95,
+                },
             )
             .with_unit(" %")
             .with_value_to_string(formatters::v2s_f32_percentage(0))
@@ -619,12 +629,33 @@ pub struct MidiParams {
 impl MidiParams {
     pub fn new() -> Self {
         Self {
-            fine_exp: FloatParam::new("MIDI Fine Step", -8.0, FloatRange::Linear { min: -10.0, max: -4.0 })
-                .with_unit(" log10"),
-            coarse_div: FloatParam::new("MIDI Coarse Ticks", 24.0, FloatRange::Linear { min: 6.0, max: 256.0 })
-                .with_unit(" ticks"),
-            speed_hi: FloatParam::new("MIDI Fast Speed", 90.0, FloatRange::Linear { min: 20.0, max: 300.0 })
-                .with_unit(" t/s"),
+            fine_exp: FloatParam::new(
+                "MIDI Fine Step",
+                -8.0,
+                FloatRange::Linear {
+                    min: -10.0,
+                    max: -4.0,
+                },
+            )
+            .with_unit(" log10"),
+            coarse_div: FloatParam::new(
+                "MIDI Coarse Ticks",
+                24.0,
+                FloatRange::Linear {
+                    min: 6.0,
+                    max: 256.0,
+                },
+            )
+            .with_unit(" ticks"),
+            speed_hi: FloatParam::new(
+                "MIDI Fast Speed",
+                90.0,
+                FloatRange::Linear {
+                    min: 20.0,
+                    max: 300.0,
+                },
+            )
+            .with_unit(" t/s"),
             inertia: FloatParam::new(
                 "MIDI Inertia",
                 90.0,

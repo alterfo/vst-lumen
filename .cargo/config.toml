@@ -1,2 +1,4 @@
 [alias]
 xtask = "run --package xtask --release --"
+standalone = "run --release --features standalone --bin lumen-standalone --"
+kit = "run --release --bin lumen-kit --"

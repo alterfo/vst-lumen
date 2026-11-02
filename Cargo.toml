@@ -6,7 +6,7 @@ license = "GPL-3.0-or-later"
 description = "Free wavetable synthesizer (CLAP/VST3)"
 
 [workspace]
-members = ["xtask"]
+members = ["xtask", "resonator"]
 
 [lib]
 crate-type = ["cdylib", "lib"]
@@ -15,6 +15,7 @@ crate-type = ["cdylib", "lib"]
 nih_plug = { git = "https://github.com/robbert-vdh/nih-plug.git", default-features = false, features = ["vst3"] }
 realfft = "3.3"
 serde = { version = "1", features = ["derive"] }
+serde_json = "1"
 nih_plug_egui = { git = "https://github.com/robbert-vdh/nih-plug.git" }
 
 [profile.release]
@@ -29,6 +30,10 @@ standalone = ["nih_plug/standalone"]
 name = "lumen-standalone"
 path = "src/main.rs"
 required-features = ["standalone"]
+
+[[bin]]
+name = "lumen-kit"
+path = "src/bin/lumen_kit.rs"
 
 [patch."https://github.com/BillyDM/egui-baseview.git"]
 egui-baseview = { path = "vendor/egui-baseview" }
