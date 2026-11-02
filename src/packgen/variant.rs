@@ -48,6 +48,7 @@ pub struct LayerSpec {
     pub events: Vec<RenderEvent>,
     pub patch: Patch,
     pub automation: Vec<Automation>,
+    pub duck: bool,
 }
 
 impl LayerSpec {
@@ -136,6 +137,10 @@ pub struct Variant {
     pub bars: usize,
     pub archetype: &'static str,
     pub character: &'static str,
+    pub duck_db: f32,
+    pub duck_attack: f32,
+    pub duck_release: f32,
+    pub glue_db: f32,
     pub sections: Vec<Section>,
     pub layers: Vec<LayerSpec>,
 }
@@ -207,10 +212,10 @@ const ARCHETYPES: &[Archetype] = &[
         hat: &["hat-closed", "hat-pedal"],
         perc: &["shaker", "woodblock"],
         bass: &["bass-sub", "bass-reese"],
-        pad: &["pad-warm", "drone-low"],
-        arp: &["arp-chime", "arp-pluck"],
-        keys: &["key-felt"],
-        texture: &["texture-drone", "texture-rain"],
+        pad: &["pad-dark", "pad-warm", "drone-low"],
+        arp: &["arp-stab", "arp-pluck"],
+        keys: &["key-felt", "arp-stab"],
+        texture: &["texture-drone", "texture-air"],
         chatty: 0.25,
         fx: [0.5, 0.3, 0.35, 0.2],
     },
@@ -221,10 +226,10 @@ const ARCHETYPES: &[Archetype] = &[
         hat: &["hat-pedal"],
         perc: &["shaker", "bell"],
         bass: &["bass-sub"],
-        pad: &["pad-airy", "pad-warm"],
-        arp: &["music-box", "arp-chime"],
-        keys: &["key-felt", "music-box"],
-        texture: &["texture-drone", "texture-rain", "texture-riser"],
+        pad: &["pad-dark", "pad-airy", "pad-warm"],
+        arp: &["arp-stab", "music-box"],
+        keys: &["key-felt", "arp-stab"],
+        texture: &["texture-air", "texture-rain", "texture-drone"],
         chatty: 0.55,
         fx: [0.65, 0.2, 0.5, 0.5],
     },
@@ -235,10 +240,10 @@ const ARCHETYPES: &[Archetype] = &[
         hat: &["hat-closed"],
         perc: &["bongo", "conga", "shaker"],
         bass: &["bass-pluck", "bass-acid"],
-        pad: &["pad-warm"],
-        arp: &["arp-pluck", "key-felt"],
-        keys: &["key-felt", "arp-chime"],
-        texture: &["texture-rain"],
+        pad: &["pad-dark", "pad-warm"],
+        arp: &["arp-stab", "arp-pluck"],
+        keys: &["key-felt", "arp-pluck"],
+        texture: &["texture-air", "texture-rain"],
         chatty: 0.35,
         fx: [0.35, 0.35, 0.45, 0.25],
     },
@@ -249,10 +254,10 @@ const ARCHETYPES: &[Archetype] = &[
         hat: &["hat-closed", "hat-pedal"],
         perc: &["woodblock", "bongo", "conga"],
         bass: &["bass-acid", "bass-reese"],
-        pad: &["pad-warm", "pad-airy"],
-        arp: &["arp-pluck", "music-box"],
-        keys: &["key-felt", "arp-chime"],
-        texture: &["texture-rain", "texture-downlifter"],
+        pad: &["pad-dark", "pad-warm", "pad-airy"],
+        arp: &["arp-stab", "arp-pluck"],
+        keys: &["key-felt", "arp-stab"],
+        texture: &["texture-air", "texture-downlifter"],
         chatty: 0.4,
         fx: [0.28, 0.4, 0.4, 0.3],
     },
@@ -263,10 +268,10 @@ const ARCHETYPES: &[Archetype] = &[
         hat: &["hat-open", "hat-pedal"],
         perc: &["bell", "tom"],
         bass: &["bass-sub", "bass-pluck"],
-        pad: &["pad-airy", "pad-warm"],
-        arp: &["arp-chime", "music-box"],
-        keys: &["key-felt", "music-box"],
-        texture: &["texture-drone", "texture-riser", "texture-downlifter"],
+        pad: &["pad-dark", "pad-airy", "pad-warm"],
+        arp: &["arp-stab", "arp-chime"],
+        keys: &["key-felt", "arp-stab"],
+        texture: &["texture-air", "texture-riser", "texture-downlifter"],
         chatty: 0.5,
         fx: [0.7, 0.25, 0.55, 0.45],
     },
@@ -277,10 +282,10 @@ const ARCHETYPES: &[Archetype] = &[
         hat: &["hat-closed", "hat-open"],
         perc: &["shaker", "conga"],
         bass: &["bass-pluck", "bass-sub"],
-        pad: &["pad-warm"],
-        arp: &["arp-pluck", "arp-chime"],
-        keys: &["key-felt"],
-        texture: &["texture-rain", "texture-drone"],
+        pad: &["pad-dark", "pad-warm"],
+        arp: &["arp-stab", "arp-pluck"],
+        keys: &["key-felt", "arp-stab"],
+        texture: &["texture-air", "texture-drone"],
         chatty: 0.4,
         fx: [0.4, 0.35, 0.45, 0.25],
     },
@@ -298,9 +303,9 @@ const CHARACTERS: &[(&str, [f32; 6])] = &[
 ];
 
 const WIDE_BASS: &[&str] = &["bass-sub", "bass-reese", "bass-acid", "bass-pluck"];
-const WIDE_PAD: &[&str] = &["pad-warm", "pad-airy", "drone-low"];
-const WIDE_ARP: &[&str] = &["arp-pluck", "arp-chime", "music-box", "key-felt"];
-const WIDE_KEYS: &[&str] = &["key-felt", "music-box", "arp-chime"];
+const WIDE_PAD: &[&str] = &["pad-dark", "pad-warm", "pad-airy", "drone-low"];
+const WIDE_ARP: &[&str] = &["arp-stab", "arp-pluck", "arp-chime", "music-box"];
+const WIDE_KEYS: &[&str] = &["key-felt", "arp-stab", "music-box"];
 const WIDE_HAT: &[&str] = &["hat-closed", "hat-pedal"];
 const WIDE_PERC: &[&str] = &["shaker", "conga", "bongo", "woodblock", "bell", "tom"];
 
@@ -624,6 +629,7 @@ fn make_layer(
         events,
         patch,
         automation,
+        duck: automate,
     }
 }
 
@@ -687,6 +693,10 @@ impl Variant {
             0.0
         };
         let sections = section_plan(&mut rng);
+        let duck_db = rng.range(3.5, 6.5);
+        let duck_attack = rng.range(0.001, 0.004);
+        let duck_release = rng.range(0.09, 0.2);
+        let glue_db = rng.range(0.5, 2.0);
         let bars = sections.iter().map(|s| s.bars).sum::<usize>();
         assert_eq!(bars, BARS);
         let slots = chord_slots(&mut rng);
@@ -891,7 +901,7 @@ impl Variant {
             "Kick",
             "kick",
             kick,
-            -6.0,
+            -5.0,
             kick_events,
             0.45,
             fx_bias,
@@ -919,7 +929,7 @@ impl Variant {
             "Hats",
             "hats",
             hat,
-            -14.0,
+            -17.0,
             hat_events,
             0.45,
             fx_bias,
@@ -933,7 +943,7 @@ impl Variant {
                 "Open hat",
                 "hat-open",
                 "hat-open",
-                -16.0,
+                -19.0,
                 open_events,
                 0.4,
                 fx_bias,
@@ -947,7 +957,7 @@ impl Variant {
             "Percussion",
             "perc",
             perc,
-            -16.0,
+            -18.0,
             perc_events,
             0.55,
             fx_bias,
@@ -960,7 +970,7 @@ impl Variant {
             "Bass",
             "bass",
             bass_voice,
-            -8.0,
+            -7.0,
             bass_events,
             0.6,
             fx_bias,
@@ -973,7 +983,7 @@ impl Variant {
             "Pad",
             "pad",
             pad,
-            -12.0,
+            -11.0,
             pad_events,
             0.55,
             fx_bias,
@@ -986,7 +996,7 @@ impl Variant {
             "Arp",
             "arp",
             arp,
-            -14.0,
+            -13.0,
             arp_events,
             0.6,
             fx_bias,
@@ -1000,7 +1010,7 @@ impl Variant {
                 "Keys",
                 "keys",
                 keys,
-                -13.0,
+                -12.0,
                 keys_events,
                 0.6,
                 fx_bias,
@@ -1016,7 +1026,7 @@ impl Variant {
                 "Texture",
                 "texture",
                 texture,
-                -20.0,
+                -22.0,
                 texture_events,
                 0.65,
                 fx_bias,
@@ -1036,6 +1046,10 @@ impl Variant {
             bars,
             archetype: archetype.name,
             character: character_name,
+            duck_db,
+            duck_attack,
+            duck_release,
+            glue_db,
             sections,
             layers,
         }

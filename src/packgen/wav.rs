@@ -94,6 +94,47 @@ pub fn stats(left: &[f32], right: &[f32], sr: f32) -> SampleStats {
     }
 }
 
+pub fn high_pass(left: &mut [f32], right: &mut [f32], sr: f32, hz: f32) {
+    let rc = 1.0 / (std::f32::consts::TAU * hz);
+    let dt = 1.0 / sr;
+    let alpha = rc / (rc + dt);
+    for channel in [left, right] {
+        let mut prev_in = 0.0f32;
+        let mut prev_out = 0.0f32;
+        for v in channel.iter_mut() {
+            let y = alpha * (prev_out + *v - prev_in);
+            prev_in = *v;
+            prev_out = y;
+            *v = y;
+        }
+    }
+}
+
+pub fn glue(left: &mut [f32], right: &mut [f32], drive_db: f32, ceiling: f32) {
+    let drive = util::db_to_gain(drive_db);
+    for v in left.iter_mut().chain(right.iter_mut()) {
+        *v = ceiling * (*v * drive / ceiling).tanh();
+    }
+}
+
+pub fn duck_envelope(mono: &[f32], sr: f32, attack: f32, release: f32, depth_db: f32) -> Vec<f32> {
+    let attack_coef = 1.0 - (-1.0 / (attack.max(0.0005) * sr)).exp();
+    let release_coef = 1.0 - (-1.0 / (release.max(0.005) * sr)).exp();
+    let depth = (1.0 - util::db_to_gain(-depth_db.abs())).clamp(0.0, 0.95);
+    let mut env = 0.0f32;
+    let mut peak = 1e-6f32;
+    let mut raw = Vec::with_capacity(mono.len());
+    for v in mono {
+        let rect = v.abs();
+        peak = peak.max(rect);
+        let coef = if rect > env { attack_coef } else { release_coef };
+        env += (rect - env) * coef;
+        raw.push(env);
+    }
+    let inv = 1.0 / peak;
+    raw.iter().map(|e| 1.0 - depth * (e * inv).clamp(0.0, 1.0)).collect()
+}
+
 fn spectrum(left: &[f32], right: &[f32], sr: f32) -> (f32, f32, f32, f32) {
     use realfft::RealFftPlanner;
     let size = 4096usize;
@@ -195,6 +236,47 @@ pub fn finish(left: &mut Vec<f32>, right: &mut Vec<f32>, sr: f32, peak_db: f32) 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn duck_envelope_dips_after_impulses_and_recovers() {
+        let sr = 48000.0f32;
+        let mut mono = vec![0.0f32; (0.6 * sr) as usize];
+        for hit in [0.1f32, 0.35] {
+            let start = (hit * sr) as usize;
+            for i in 0..((0.01 * sr) as usize) {
+                mono[start + i] = (1.0 - i as f32 / (0.01 * sr)) * 0.9;
+            }
+        }
+        let env = duck_envelope(&mono, sr, 0.001, 0.12, 6.0);
+        assert_eq!(env.len(), mono.len());
+        assert!(env.iter().all(|g| *g > 0.5 && *g <= 1.0), "gain out of range");
+        let dip_start = (0.1 * sr) as usize;
+        let dip = env[dip_start..dip_start + (0.02 * sr) as usize]
+            .iter()
+            .fold(1.0f32, |m, g| m.min(*g));
+        assert!(dip < 0.75, "no ducking after the first hit: {dip}");
+        let recovery = env[(0.28 * sr) as usize];
+        assert!(recovery > 0.85 && recovery > dip, "gain did not recover: {recovery}");
+    }
+
+    #[test]
+    fn glue_and_high_pass_keep_the_signal_bounded() {
+        let sr = 48000.0f32;
+        let n = (0.5 * sr) as usize;
+        let mut left: Vec<f32> = (0..n)
+            .map(|i| (i as f32 / sr * 55.0 * std::f32::consts::TAU).sin() * 0.9)
+            .collect();
+        let mut right = left.clone();
+        high_pass(&mut left, &mut right, sr, 28.0);
+        glue(&mut left, &mut right, 2.0, 0.97);
+        normalize(&mut left, &mut right, -1.0);
+        let peak = left
+            .iter()
+            .chain(right.iter())
+            .fold(0.0f32, |m, v| m.max(v.abs()));
+        assert!(peak > 0.85 && peak <= 0.9, "peak {peak}");
+        assert!(left.iter().chain(right.iter()).all(|v| v.is_finite()));
+    }
 
     #[test]
     fn writes_a_readable_24_bit_stereo_wav() {

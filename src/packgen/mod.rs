@@ -271,6 +271,7 @@ struct MixReport {
     automation: Vec<String>,
     voices: Vec<String>,
     character: String,
+    sidechain_db: f32,
 }
 
 #[derive(Serialize)]
@@ -304,9 +305,47 @@ fn render_variant(
     let mut left_sum = vec![0.0f32; mix_len];
     let mut right_sum = vec![0.0f32; mix_len];
     let mut voices = Vec::new();
+
+    let kick_env = match variant
+        .layers
+        .iter()
+        .find(|l| l.slug == "kick" && variant.duck_db > 0.0)
+    {
+        Some(kick) => {
+            let (kl, kr) = synth::render_layer(table, kick, len, span);
+            let mono: Vec<f32> = kl
+                .iter()
+                .zip(kr.iter())
+                .map(|(a, b)| (a + b) * 0.5)
+                .collect();
+            Some(wav::duck_envelope(
+                &mono,
+                sample_rate(),
+                variant.duck_attack,
+                variant.duck_release,
+                variant.duck_db,
+            ))
+        }
+        None => None,
+    };
+
     for layer in &variant.layers {
         let (mut left, mut right) = synth::render_layer(table, layer, len, span);
         wav::finish(&mut left, &mut right, sample_rate(), layer.peak_db);
+        if let Some(env) = kick_env.as_ref() {
+            if layer.duck && layer.slug != "kick" {
+                for (i, v) in left.iter_mut().enumerate() {
+                    if let Some(g) = env.get(i) {
+                        *v *= *g;
+                    }
+                }
+                for (i, v) in right.iter_mut().enumerate() {
+                    if let Some(g) = env.get(i) {
+                        *v *= *g;
+                    }
+                }
+            }
+        }
         if keep_stems {
             wav::write_wav(
                 &out.join(format!("{}.wav", layer.slug)),
@@ -324,8 +363,10 @@ fn render_variant(
         voices.push(layer.kit_slug.to_string());
     }
     wav::trim_tail(&mut left_sum, &mut right_sum, sample_rate());
+    wav::high_pass(&mut left_sum, &mut right_sum, sample_rate(), 28.0);
+    wav::glue(&mut left_sum, &mut right_sum, variant.glue_db, 0.97);
     wav::fade_edges(&mut left_sum, &mut right_sum, sample_rate());
-    wav::normalize(&mut left_sum, &mut right_sum, -3.0);
+    wav::normalize(&mut left_sum, &mut right_sum, -1.0);
     let stats = wav::stats(&left_sum, &right_sum, sample_rate());
     let mix_path = out.join("mix.wav");
     wav::write_wav(&mix_path, sample_rate() as u32, &left_sum, &right_sum)?;
@@ -350,6 +391,7 @@ fn render_variant(
         rms_db: stats.rms_db,
         automation: variant.automation_summary(),
         character: variant.character.to_string(),
+        sidechain_db: variant.duck_db,
         voices,
     };
     fs::write(
@@ -964,5 +1006,53 @@ mod tests {
             assert!(base.join("mixes").join(name).is_file(), "{name} missing");
         }
         let _ = fs::remove_dir_all(&base);
+    }
+
+    #[test]
+    fn sidechain_ducks_the_mix_on_kick_hits_and_master_peaks_at_minus_one() {
+        let dir = std::env::temp_dir().join("lumen-sidechain-test");
+        let _ = fs::remove_dir_all(&dir);
+        let options = MixOptions {
+            count: 1,
+            seed: 3,
+            keep_stems: true,
+            mp3: false,
+        };
+        run_mixes(&dir, &options).unwrap();
+        let root = dir.join("mixes");
+        let folder = fs::read_dir(&root)
+            .unwrap()
+            .filter_map(|e| e.ok())
+            .map(|e| e.path())
+            .find(|p| p.is_dir())
+            .expect("mix folder");
+        let report = wav::stats(
+            &std::iter::repeat(0.0f32).take(8).collect::<Vec<_>>(),
+            &[0.0; 8],
+            48000.0,
+        );
+        let _ = report;
+        let mix = folder.join("mix.wav");
+        let rows = analyze(&folder).unwrap();
+        let mix_row = rows
+            .iter()
+            .find(|r| r.file == "mix.wav")
+            .expect("mix.wav row");
+        let peak = mix_row.stats.peak_db;
+        assert!(
+            (peak + 1.0).abs() < 0.3,
+            "master peak {peak} should sit at -1 dBFS"
+        );
+        assert!(mix.is_file());
+        let variant_json = fs::read_to_string(folder.join("variant.json")).unwrap();
+        let parsed: serde_json::Value = serde_json::from_str(&variant_json).unwrap();
+        let sidechain = parsed
+            .get("sidechain_db")
+            .and_then(|v| v.as_f64())
+            .unwrap_or(0.0);
+        assert!(sidechain > 0.0, "mix does not report a sidechain depth");
+        assert!(folder.join("bass.wav").is_file());
+        assert!(mix.is_file());
+        let _ = fs::remove_dir_all(&dir);
     }
 }

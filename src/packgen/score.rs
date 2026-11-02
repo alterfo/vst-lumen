@@ -39,6 +39,8 @@ struct ScoreLayer {
     name: String,
     kit_voice: String,
     #[serde(default)]
+    duck: bool,
+    #[serde(default)]
     peak_db: Option<f32>,
     #[serde(default)]
     jitter: Option<f32>,
@@ -226,6 +228,7 @@ pub fn render_file(
             events,
             patch,
             automation,
+            duck: layer.duck,
         };
         let (mut left, mut right) = synth::render_layer(&table, &spec, len, span as f32);
         wav::finish(&mut left, &mut right, sample_rate(), spec.peak_db);

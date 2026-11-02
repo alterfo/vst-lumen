@@ -27,13 +27,15 @@ Crate `lumen` (cdylib + lib), built with nih-plug (CLAP, VST3) and nih_plug_egui
 | `strings_bank.rs` | 100 generated presets (Cup Bass family) |
 | `widgets.rs` | Shared GUI theme, analog knob, sections, selectors, meters |
 | `packgen/mod.rs` | Offline sample-kit driver: kit manifest, WAV writer, background job with progress, CLI analysis |
-| `packgen/kit.rs` | The 30 kit voices as parameter tables (kicks, snares, hats, percussion, basses, pads, arps, keys, textures) |
+| `packgen/kit.rs` | The 33 kit voices as parameter tables (kicks, snares, hats, percussion, basses, pads, arps, keys, textures) |
 | `packgen/engine.rs` | Offline render engine: `Patch` (plain knob values) driving the same `voice`/`fx`/`body`/`granular` DSP without nih-plug parameters |
 | `packgen/groove.rs` | 128 BPM / A phrygian demo groove patterns, 16th grid, one stem per layer |
-| `packgen/variant.rs` | Seeded variant generator: archetype (voice pool + fx balance), 16-bar section form, tempo, key, swing, chord walk, per-section patterns, parameter jitter, automation lanes |
+| `packgen/variant.rs` | Seeded variant generator: archetype (voice pool + fx balance), timbre character, 16-bar section form, tempo, key, swing, chord walk, per-section patterns, parameter jitter, automation lanes, sidechain depth |
+| `packgen/taste.rs` | Learns which mixes were kept or deleted from `mixes/index.json` + disk and scores candidates against that |
 | `packgen/score.rs` | `--score` contract: renders an external JSON score (layers, notes, automation) into stems and a mix for other programs |
 | `packgen/synth.rs` | Event scheduler that renders voices and multi-event layers sample-accurately |
-| `packgen/wav.rs` | 24-bit stereo WAV writer, tail trim, edge fades, peak normalization, spectrum stats |
+| `packgen/wav.rs` | 24-bit stereo WAV writer, tail trim, edge fades, peak normalization, kick-triggered ducking envelope, master high-pass and glue, spectrum stats |
+| `packgen/mp3.rs` | 320 kbps MP3 sidecar through ffmpeg |
 | `src/bin/lumen_kit.rs` | `lumen-kit` CLI: render the pack or analyze an existing folder |
 
 ## Real-time rules

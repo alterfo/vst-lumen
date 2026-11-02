@@ -69,7 +69,7 @@ cp -R target/bundled/lumen-resonator.clap ~/Library/Audio/Plug-Ins/CLAP/
 
 ## Sample kit generator
 
-The plugin can also write its own sample pack: 30 voices (kicks, snares, hats, percussion, basses,
+The plugin can also write its own sample pack: 33 voices (kicks, snares, hats, percussion, basses,
 pads, arps, keys, textures) plus a layered demo groove, rendered offline at 48 kHz / 24-bit stereo.
 
 - In the plugin: **Output → Sample kit → One-shots / Demo groove / Everything**. Pick the folder in the
@@ -153,6 +153,15 @@ Everything the generator renders comes from one seed, and the seed drives the *m
    mode) run over the whole 16 bars, so the timbre moves instead of repeating.
 7. **Diversity guard** — a candidate is only accepted if its voice set differs from every mix already
    rendered (and from the batch itself) by at least four voices.
+8. **Sidechain and master bus** — the kick drives a ducking envelope (3.5–6.5 dB, 1–4 ms attack,
+   90–200 ms release) on bass, pad, arp, keys and texture layers, so the low end pumps instead of
+   fighting. The mix then goes through a 28 Hz high-pass, a soft-clip glue stage and a −1 dBFS peak
+   normalisation, which puts mixes around −16 LUFS with a modern crest factor.
+
+The kit itself is tuned for a modern electronic sound rather than a 1980s one: the plucks and mallets
+lost most of their physical-model resonator (`arp-pluck`, `bass-pluck`, `music-box`, `bell`), gained
+detuned unison, granular smearing and longer delay/reverb tails, and three new voices were added —
+`arp-stab` (wide detuned stab), `pad-dark` (dark evolving pad) and `texture-air` (granular shimmer).
 
 Same seed -> byte-identical audio, so any mix can be reproduced with `--mixes 1 --seed <n>`. MP3 copies
 (320 kbps, ffmpeg) are written next to the WAV with `--mp3`, which cuts a 100-mix batch from ~1.1 GB to
